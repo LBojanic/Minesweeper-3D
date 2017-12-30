@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <time.h>
 
 #define VELICINA_KOCKE 5
+#define BROJ_MINA 5
 
 static void on_keyboard(unsigned char key, int x, int y);
 static void on_display(void);
@@ -12,6 +14,7 @@ static void on_mouse(int button, int state, int x, int y);
 
 float theta; //sferne koordinate
 float phi;
+int gameover; //fleg da li je doslo do kraja igre
 
 typedef struct kockica {
 	int otvorena; // fleg da li je otvorena kockica, 0 za nije, 1 za jeste
@@ -36,8 +39,10 @@ int main(int argc, char *argv[]) {
 	glEnable(GL_DEPTH_TEST);
 	glClearColor(0.8, 0.8, 0.8, 1);
 
-    phi = M_PI/4; // Inicijalni pogled 
+    phi = M_PI/4; // Inicijalni pogled
     theta = M_PI/4; 
+
+    gameover = 0;
 
     int i, j, k;
 	for(i = 0; i < VELICINA_KOCKE; i++) {
@@ -48,6 +53,12 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
+
+	srand(time(NULL));
+	for(i = 0; i < BROJ_MINA; i++) {
+		kocka[rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE].bomba = 1;
+	}
+
 
 	glutMainLoop();
 
@@ -90,14 +101,32 @@ static void on_keyboard(unsigned char key, int x, int y) {
                 theta += 2 * M_PI;
             glutPostRedisplay();
             break;
+        case 'r':
+        	phi = M_PI/4;
+		    theta = M_PI/4; 
+		    gameover = 0;
+		    int i, j, k;
+		    for(i = 0; i < VELICINA_KOCKE; i++) {
+				for(j = 0; j < VELICINA_KOCKE; j++) {
+					for(k = 0; k < VELICINA_KOCKE; k++) {
+						kocka[i][j][k].otvorena = 0;
+						kocka[i][j][k].bomba = 0;
+					}
+				}
+			}
+			for(i = 0; i < BROJ_MINA; i++) {
+				kocka[rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE].bomba = 1;
+			}
+		    glutPostRedisplay();
+		    break;
+
 	}
 }
 
 static void on_mouse(int button, int state, int x, int y) {
 	switch(button) {
 		case GLUT_LEFT_BUTTON:
-			if(state == GLUT_DOWN) { // kada se pritisne levi klik na misu od 2d koordinata dobijamo 3d
-
+			if(state == GLUT_DOWN) { // kada se pritisne levi klik na misu od 2d koordinata dobijamo 3
 				GLdouble x1, y1, z1; //Svetske koordinate
 				GLdouble model[16], projection[16];
 				GLint viewport[4];
@@ -114,9 +143,13 @@ static void on_mouse(int button, int state, int x, int y) {
 				if((int)(x1 + 0.5) <= VELICINA_KOCKE-1 && (int)(x1 + 0.5) >= 0 && //samo ako su nam koordinate iz intervala [0, 4]
 				   (int)(y1 + 0.5) <= VELICINA_KOCKE-1 && (int)(y1 + 0.5) >= 0 &&
 				   (int)(z1 + 0.5) <= VELICINA_KOCKE-1 && (int)(z1 + 0.5) >= 0) {
-
-						kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].otvorena = 1;
-						glutPostRedisplay();	
+						if(kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].bomba) {
+							gameover = 1;
+							glutPostRedisplay();
+						} else {
+							kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].otvorena = 1;
+							glutPostRedisplay();
+						}	
 				}		
 			}
 			break;
@@ -185,18 +218,34 @@ static void on_display(void) {
 	//     glEnable(GL_LIGHTING);
  //    glEnable(GL_LIGHT0);
 	// glPopMatrix();
-
-	glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
-	int i, j, k;
-	for(i = 0; i < VELICINA_KOCKE; i++) {
-		for(j = 0; j < VELICINA_KOCKE; j++) {
-			for(k = 0; k < VELICINA_KOCKE; k++) {
-				glPushMatrix();
-				if(kocka[i][j][k].otvorena == 0) {
-					glTranslatef(i, j, k);
-					glutSolidCube(0.9);
+    if(!gameover) {
+		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
+		int i, j, k;
+		for(i = 0; i < VELICINA_KOCKE; i++) {
+			for(j = 0; j < VELICINA_KOCKE; j++) {
+				for(k = 0; k < VELICINA_KOCKE; k++) {
+					glPushMatrix();
+					if(kocka[i][j][k].otvorena == 0) {
+						glTranslatef(i, j, k);
+						glutSolidCube(0.9);
+					}
+					glPopMatrix();
 				}
-				glPopMatrix();
+			}
+		}
+	} else {
+		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
+		int i, j, k;
+		for(i = 0; i < VELICINA_KOCKE; i++) {
+			for(j = 0; j < VELICINA_KOCKE; j++) {
+				for(k = 0; k < VELICINA_KOCKE; k++) {
+					glPushMatrix();
+					if(kocka[i][j][k].bomba == 1) {
+						glTranslatef(i, j, k);
+						glutSolidCube(0.9);
+					}
+					glPopMatrix();
+				}
 			}
 		}
 	}
