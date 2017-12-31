@@ -23,7 +23,8 @@ int victory;
 typedef struct kockica {
 	int otvorena; // fleg da li je otvorena kockica, 0 za nije, 1 za jeste
 	int bomba; // fleg da li je kockica bomba, 0 za nije, 1 za jeste
-	int brojBombiUOkolini;   
+	int brojBombiUOkolini;
+	int zastavica;   
 } KOCKICA;
 
 KOCKICA kocka[VELICINA_KOCKE][VELICINA_KOCKE][VELICINA_KOCKE];
@@ -131,6 +132,29 @@ static void on_mouse(int button, int state, int x, int y) {
 						}	
 				}		
 			break;
+		case GLUT_RIGHT_BUTTON:
+			if(state == GLUT_DOWN) { // kada se pritisne levi klik na misu od 2d koordinata dobijamo 3
+				GLdouble x1, y1, z1; //Svetske koordinate
+				GLdouble model[16], projection[16];
+				GLint viewport[4];
+				GLfloat z;
+
+				glGetDoublev(GL_PROJECTION_MATRIX, projection);
+				glGetDoublev(GL_MODELVIEW_MATRIX, model);
+				glGetIntegerv(GL_VIEWPORT, viewport);
+
+				y = (float)viewport[3] - y;
+				glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
+				gluUnProject(x, y, z, model, projection, viewport, &x1, &y1, &z1);
+
+				if((int)(x1 + 0.5) <= VELICINA_KOCKE-1 && (int)(x1 + 0.5) >= 0 && //samo ako su nam koordinate iz intervala [0, 4]
+				   (int)(y1 + 0.5) <= VELICINA_KOCKE-1 && (int)(y1 + 0.5) >= 0 &&
+				   (int)(z1 + 0.5) <= VELICINA_KOCKE-1 && (int)(z1 + 0.5) >= 0) {
+							kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].zastavica = !kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].zastavica;
+							glutPostRedisplay();
+						}	
+				}	
+			break;
 	}
 }
 
@@ -183,7 +207,14 @@ static void on_display(void) {
 			for(j = 0; j < VELICINA_KOCKE; j++) {
 				for(k = 0; k < VELICINA_KOCKE; k++) {
 					glPushMatrix();
-					if(kocka[i][j][k].otvorena == 0) {
+					if(kocka[i][j][k].otvorena == 0 && kocka[i][j][k].zastavica == 0) {
+						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){ 0.3, 0.7, 0.3, 1 });
+    					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){ 0.2, 1, 0.2, 1 });
+						glTranslatef(i, j, k);
+						glutSolidCube(0.9);
+					} else if(kocka[i][j][k].otvorena == 0) {
+						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){0, 1, 1, 1});
+    					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){0, 1, 1, 1});
 						glTranslatef(i, j, k);
 						glutSolidCube(0.9);
 					}
@@ -223,6 +254,7 @@ static void initializeCube(void) {
 				kocka[i][j][k].otvorena = 0;
 				kocka[i][j][k].bomba = 0;
 				kocka[i][j][k].brojBombiUOkolini = 0;
+				kocka[i][j][k].zastavica = 0;
 			}
 		}
 	}
