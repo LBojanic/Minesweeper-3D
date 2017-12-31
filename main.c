@@ -11,14 +11,19 @@ static void on_keyboard(unsigned char key, int x, int y);
 static void on_display(void);
 static void on_reshape(int width, int height);
 static void on_mouse(int button, int state, int x, int y);
+static void initializeCube(void);  
+static void minesweeper(int a, int b, int c);
 
 float theta; //sferne koordinate
 float phi;
 int gameover; //fleg da li je doslo do kraja igre
+int cellsToGo;
+int victory;
 
 typedef struct kockica {
 	int otvorena; // fleg da li je otvorena kockica, 0 za nije, 1 za jeste
 	int bomba; // fleg da li je kockica bomba, 0 za nije, 1 za jeste
+	int brojBombiUOkolini;   
 } KOCKICA;
 
 KOCKICA kocka[VELICINA_KOCKE][VELICINA_KOCKE][VELICINA_KOCKE];
@@ -39,26 +44,13 @@ int main(int argc, char *argv[]) {
 	glEnable(GL_DEPTH_TEST);
 	glClearColor(0.8, 0.8, 0.8, 1);
 
-    phi = M_PI/4; // Inicijalni pogled
+    phi = M_PI/4; 
     theta = M_PI/4; 
-
     gameover = 0;
+    cellsToGo = VELICINA_KOCKE * VELICINA_KOCKE * VELICINA_KOCKE - BROJ_MINA;
+    victory = 0;
 
-    int i, j, k;
-	for(i = 0; i < VELICINA_KOCKE; i++) {
-		for(j = 0; j < VELICINA_KOCKE; j++) {
-			for(k = 0; k < VELICINA_KOCKE; k++) {
-				kocka[i][j][k].otvorena = 0;
-				kocka[i][j][k].bomba = 0;
-			}
-		}
-	}
-
-	srand(time(NULL));
-	for(i = 0; i < BROJ_MINA; i++) {
-		kocka[rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE].bomba = 1;
-	}
-
+    initializeCube();
 
 	glutMainLoop();
 
@@ -105,18 +97,9 @@ static void on_keyboard(unsigned char key, int x, int y) {
         	phi = M_PI/4;
 		    theta = M_PI/4; 
 		    gameover = 0;
-		    int i, j, k;
-		    for(i = 0; i < VELICINA_KOCKE; i++) {
-				for(j = 0; j < VELICINA_KOCKE; j++) {
-					for(k = 0; k < VELICINA_KOCKE; k++) {
-						kocka[i][j][k].otvorena = 0;
-						kocka[i][j][k].bomba = 0;
-					}
-				}
-			}
-			for(i = 0; i < BROJ_MINA; i++) {
-				kocka[rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE][rand() % VELICINA_KOCKE].bomba = 1;
-			}
+		    victory = 0;
+		    cellsToGo = VELICINA_KOCKE * VELICINA_KOCKE * VELICINA_KOCKE - BROJ_MINA;
+		    initializeCube();
 		    glutPostRedisplay();
 		    break;
 
@@ -143,17 +126,11 @@ static void on_mouse(int button, int state, int x, int y) {
 				if((int)(x1 + 0.5) <= VELICINA_KOCKE-1 && (int)(x1 + 0.5) >= 0 && //samo ako su nam koordinate iz intervala [0, 4]
 				   (int)(y1 + 0.5) <= VELICINA_KOCKE-1 && (int)(y1 + 0.5) >= 0 &&
 				   (int)(z1 + 0.5) <= VELICINA_KOCKE-1 && (int)(z1 + 0.5) >= 0) {
-						if(kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].bomba) {
-							gameover = 1;
-							glutPostRedisplay();
-						} else {
-							kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].otvorena = 1;
+							minesweeper((int)(x1 + 0.5), (int)(y1 + 0.5), (int)(z1 + 0.5));
 							glutPostRedisplay();
 						}	
 				}		
-			}
 			break;
-
 	}
 }
 
@@ -199,26 +176,7 @@ static void on_display(void) {
     
     glShadeModel(GL_SMOOTH);
 
- //    glPushMatrix();
- //    glDisable(GL_LIGHTING);
- //    glDisable(GL_LIGHT0);
-	// glBegin(GL_LINES); // Axis z, x, y
-	// 	glColor3f(1, 0, 0);
-	// 	glVertex3f(VELICINA_KOCKE, 0, 0);
-	// 	glVertex3f(0, 0, 0);
-
-	// 	glColor3f(0, 1, 0);
-	// 	glVertex3f(0, VELICINA_KOCKE, 0);
-	// 	glVertex3f(0, 0, 0);
-
-	// 	glColor3f(0, 0, 1);
-	// 	glVertex3f(0, 0, VELICINA_KOCKE);	
-	// 	glVertex3f(0, 0, 0);
-	// glEnd();
-	//     glEnable(GL_LIGHTING);
- //    glEnable(GL_LIGHT0);
-	// glPopMatrix();
-    if(!gameover) {
+    if(!gameover && !victory) { // Ako nije kliknuta mina onda iscrtavamo kocke
 		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
 		int i, j, k;
 		for(i = 0; i < VELICINA_KOCKE; i++) {
@@ -233,7 +191,7 @@ static void on_display(void) {
 				}
 			}
 		}
-	} else {
+	} else if(gameover && !victory){ // inace iscrtavamo mine
 		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
 		int i, j, k;
 		for(i = 0; i < VELICINA_KOCKE; i++) {
@@ -242,13 +200,182 @@ static void on_display(void) {
 					glPushMatrix();
 					if(kocka[i][j][k].bomba == 1) {
 						glTranslatef(i, j, k);
-						glutSolidCube(0.9);
+						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){1, 0, 0, 1});
+    					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){1, 0, 0, 1});
+						glutSolidCube(0.5);
 					}
 					glPopMatrix();
 				}
 			}
 		}
+	} else if(victory) {
+		glutSolidTeapot(1);
 	}
 
 	glutSwapBuffers();
+}
+
+static void initializeCube(void) {
+	int i, j, k;
+	for(i = 0; i < VELICINA_KOCKE; i++) {
+		for(j = 0; j < VELICINA_KOCKE; j++) {
+			for(k = 0; k < VELICINA_KOCKE; k++) {
+				kocka[i][j][k].otvorena = 0;
+				kocka[i][j][k].bomba = 0;
+				kocka[i][j][k].brojBombiUOkolini = 0;
+			}
+		}
+	}
+
+	srand(time(NULL));
+	
+	for(i = 0; i < BROJ_MINA; i++) {
+		int a, b, c;
+		a = rand() % VELICINA_KOCKE;
+		b = rand() % VELICINA_KOCKE;
+		c = rand() % VELICINA_KOCKE;
+		while(kocka[a][b][c].bomba == 1){
+			a = rand() % VELICINA_KOCKE;
+			b = rand() % VELICINA_KOCKE;
+			c = rand() % VELICINA_KOCKE;
+		}
+		kocka[a][b][c].bomba = 1; // postavljena bomba
+
+		/*Sada treba svakom susedu uvecati brojac bombi u okolini. 
+		Ispitujemo za svako polje oko bombe da li postoji i ako postoji uvecavamo brojac bombi u okolini*/
+
+		if(b + 1 < VELICINA_KOCKE)
+			kocka[a][b+1][c].brojBombiUOkolini += 1;
+		if(b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+			kocka[a][b+1][c+1].brojBombiUOkolini += 1;
+		if(b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+			kocka[a][b+1][c-1].brojBombiUOkolini += 1;
+		if(c - 1 >= 0)
+			kocka[a][b][c-1].brojBombiUOkolini += 1;
+		if(c + 1 < VELICINA_KOCKE)
+			kocka[a][b][c+1].brojBombiUOkolini += 1;
+		if(b - 1 >= 0)
+			kocka[a][b-1][c].brojBombiUOkolini += 1;
+		if(c + 1 < VELICINA_KOCKE && b - 1 >= 0)
+			kocka[a][b-1][c+1].brojBombiUOkolini += 1;
+		if(c - 1 >= 0 && b - 1 >= 0)
+			kocka[a][b-1][c-1].brojBombiUOkolini += 1;
+
+
+		if(a + 1 < VELICINA_KOCKE)
+			kocka[a+1][b][c].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE)
+			kocka[a+1][b+1][c].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+			kocka[a+1][b+1][c-1].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+			kocka[a+1][b+1][c+1].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && c - 1 >= 0)
+			kocka[a+1][b][c-1].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+			kocka[a+1][b][c+1].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && b - 1 >= 0)
+			kocka[a+1][b-1][c].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c - 1 >= 0)
+			kocka[a+1][b-1][c-1].brojBombiUOkolini += 1;
+		if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+			kocka[a+1][b-1][c+1].brojBombiUOkolini += 1;
+
+
+		if(a - 1 >= 0)
+			kocka[a-1][b][c].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && c - 1 >= 0)
+			kocka[a-1][b][c-1].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+			kocka[a-1][b][c+1].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE)
+			kocka[a-1][b+1][c].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+			kocka[a-1][b+1][c-1].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+			kocka[a-1][b+1][c+1].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && b - 1 >= 0)
+			kocka[a-1][b-1][c].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && b - 1 >= 0 && c - 1 >= 0)
+			kocka[a-1][b-1][c-1].brojBombiUOkolini += 1;
+		if(a - 1 >= 0 && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+			kocka[a-1][b-1][c+1].brojBombiUOkolini += 1;
+	}
+}
+
+static void minesweeper(int a, int b, int c){
+	if(kocka[a][b][c].otvorena == 1) {
+		return ; 
+	} else {
+		if(kocka[a][b][c].bomba == 1) {
+			gameover = 1;
+			return ;
+		} else {
+			if(kocka[a][b][c].brojBombiUOkolini > 0) {
+				kocka[a][b][c].otvorena = 1;
+				if(--cellsToGo == 0){
+					victory = 1;
+				}
+				return ;
+			} else {
+				kocka[a][b][c].otvorena = 1;
+				if(b + 1 < VELICINA_KOCKE)
+					minesweeper(a, b+1, c);
+				if(b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+					minesweeper(a, b+1, c+1);
+				if(b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+					minesweeper(a, b+1, c-1);
+				if(c - 1 >= 0)
+					minesweeper(a, b, c-1);
+				if(c + 1 < VELICINA_KOCKE)
+					minesweeper(a, b, c+1);
+				if(b - 1 >= 0)
+					minesweeper(a, b-1, c);
+				if(c + 1 < VELICINA_KOCKE && b - 1 >= 0)
+					minesweeper(a, b-1, c+1);
+				if(c - 1 >= 0 && b - 1 >= 0)
+					minesweeper(a, b-1, c-1);
+
+
+				if(a + 1 < VELICINA_KOCKE)
+					minesweeper(a+1, b, c);
+				if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE)
+					minesweeper(a+1, b+1, c);
+				if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+					minesweeper(a+1, b+1, c-1);
+				if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+					minesweeper(a+1, b+1, c+1);
+				if(a + 1 < VELICINA_KOCKE && c - 1 >= 0)
+					minesweeper(a+1, b, c-1);
+				if(a + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+					minesweeper(a+1, b, c+1);
+				if(a + 1 < VELICINA_KOCKE && b - 1 >= 0)
+					minesweeper(a+1, b-1, c);
+				if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c - 1 >= 0)
+					minesweeper(a+1, b-1, c-1);
+				if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+					minesweeper(a+1, b-1, c+1);
+
+
+				if(a - 1 >= 0)
+					minesweeper(a-1, b, c);
+				if(a - 1 >= 0 && c - 1 >= 0)
+					minesweeper(a-1, b, c-1);
+				if(a - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+					minesweeper(a-1, b, c+1);
+				if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE)
+					minesweeper(a-1, b+1, c);
+				if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+					minesweeper(a-1, b+1, c-1);
+				if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+					minesweeper(a-1, b+1, c+1);
+				if(a - 1 >= 0 && b - 1 >= 0)
+					minesweeper(a-1, b-1, c);
+				if(a - 1 >= 0 && b - 1 >= 0 && c - 1 >= 0)
+					minesweeper(a-1, b-1, c-1);
+				if(a - 1 >= 0 && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+					minesweeper(a-1, b-1, c+1);
+			}
+		}
+	}
 }
