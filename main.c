@@ -19,6 +19,7 @@ float phi;
 int gameover; //fleg da li je doslo do kraja igre
 int cellsToGo;
 int victory;
+float scale;
 
 typedef struct kockica {
 	int otvorena; // fleg da li je otvorena kockica, 0 za nije, 1 za jeste
@@ -50,7 +51,7 @@ int main(int argc, char *argv[]) {
     gameover = 0;
     cellsToGo = VELICINA_KOCKE * VELICINA_KOCKE * VELICINA_KOCKE - BROJ_MINA;
     victory = 0;
-
+    scale = 10;
     initializeCube();
 
 	glutMainLoop();
@@ -100,10 +101,10 @@ static void on_keyboard(unsigned char key, int x, int y) {
 		    gameover = 0;
 		    victory = 0;
 		    cellsToGo = VELICINA_KOCKE * VELICINA_KOCKE * VELICINA_KOCKE - BROJ_MINA;
+		    scale = 10;
 		    initializeCube();
 		    glutPostRedisplay();
 		    break;
-
 	}
 }
 
@@ -155,6 +156,14 @@ static void on_mouse(int button, int state, int x, int y) {
 						}	
 				}	
 			break;
+		case 3:
+			scale -= 0.1;
+			glutPostRedisplay();
+			break;
+		case 4:
+			scale += 0.1;
+			glutPostRedisplay();
+			break;	
 	}
 }
 
@@ -180,18 +189,18 @@ static void on_display(void) {
 
 	glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(10 * sin(theta) * sin(phi), 
-              10 * cos(phi), 
-              10 * cos(theta) * sin(phi), 
+    gluLookAt(scale * sin(theta) * sin(phi), 
+              scale * cos(phi), 
+              scale * cos(theta) * sin(phi), 
               0, 0, 0,
               0, 1, 0);
 
     glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
     glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
-    glLightfv(GL_LIGHT0, GL_POSITION, (float[4]){10 * sin(theta) * sin(phi), 
-              							10 * cos(phi), 
-              							10 * cos(theta) * sin(phi), 0});
+    glLightfv(GL_LIGHT0, GL_POSITION, (float[4]){scale * sin(theta) * sin(phi), 
+              							scale * cos(phi), 
+              							scale * cos(theta) * sin(phi), 0});
 
     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, ambient_coeffs);
     glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
@@ -217,9 +226,11 @@ static void on_display(void) {
 						glScalef(0.003,0.003,0.003);
 						char str[8];
 						sprintf(str, "%d", kocka[i][j][k].brojBombiUOkolini);
-						char *c;
-						for (c=str; *c != '\0'; c++) {
-						    glutStrokeCharacter(GLUT_STROKE_MONO_ROMAN, *c);
+						char *c = str;
+						if(*c != '0') {	
+							for (c=str; *c != '\0'; c++) {
+							    glutStrokeCharacter(GLUT_STROKE_MONO_ROMAN, *c);
+							}
 						}
 						glEnable(GL_LIGHT0);
 						glEnable(GL_LIGHTING);
@@ -363,12 +374,14 @@ static void minesweeper(int a, int b, int c){
 		} else {
 			if(kocka[a][b][c].brojBombiUOkolini > 0) {
 				kocka[a][b][c].otvorena = 1;
-				if(--cellsToGo == 0){
+				cellsToGo -= 1;
+				if(cellsToGo <= 0){
 					victory = 1;
 				}
 				return ;
 			} else {
 				kocka[a][b][c].otvorena = 1;
+				cellsToGo -= 1;
 				if(b + 1 < VELICINA_KOCKE)
 					minesweeper(a, b+1, c);
 				if(b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
