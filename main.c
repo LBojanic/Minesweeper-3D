@@ -207,6 +207,24 @@ static void on_display(void) {
 			for(j = 0; j < VELICINA_KOCKE; j++) {
 				for(k = 0; k < VELICINA_KOCKE; k++) {
 					glPushMatrix();
+					if(kocka[i][j][k].otvorena == 1) {
+
+						glDisable(GL_LIGHT0);
+						glDisable(GL_LIGHTING);
+
+						glColor3f(0,0,0); 
+						glTranslatef(i, j, k);
+						glScalef(0.003,0.003,0.003);
+						char str[8];
+						sprintf(str, "%d", kocka[i][j][k].brojBombiUOkolini);
+						char *c;
+						for (c=str; *c != '\0'; c++) {
+						    glutStrokeCharacter(GLUT_STROKE_MONO_ROMAN, *c);
+						}
+						glEnable(GL_LIGHT0);
+						glEnable(GL_LIGHTING);
+					}
+					
 					if(kocka[i][j][k].otvorena == 0 && kocka[i][j][k].zastavica == 0) {
 						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){ 0.3, 0.7, 0.3, 1 });
     					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){ 0.2, 1, 0.2, 1 });
