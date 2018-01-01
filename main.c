@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <time.h>
 
+
 #define VELICINA_KOCKE 5
 #define BROJ_MINA 5
 
@@ -71,30 +72,35 @@ static void on_keyboard(unsigned char key, int x, int y) {
 		case 27:
 			exit(0);
 			break;
+		case 'S':
         case 's':
             phi = phi + M_PI/90;
             if(phi > M_PI - M_PI/90)
                 phi = M_PI - M_PI/90;
             glutPostRedisplay();
             break;
+        case 'W':
         case 'w':
             phi = phi - M_PI/90;
             if(phi < 0 + M_PI/90)
                 phi = 0 + M_PI/90;
             glutPostRedisplay();
             break;
+        case 'D':
         case 'd':
             theta = theta + M_PI/90;
             if(theta > 2*M_PI)
                 theta -= 2*M_PI;
             glutPostRedisplay();
             break;
+        case 'A':
         case 'a':
             theta = theta - M_PI/90;
             if(theta < -2 * M_PI)
                 theta += 2 * M_PI;
             glutPostRedisplay();
             break;
+        case 'R':
         case 'r':
         	phi = M_PI/4;
 		    theta = M_PI/4; 
@@ -209,6 +215,26 @@ static void on_display(void) {
     
     glShadeModel(GL_SMOOTH);
 
+ //    glPushMatrix();
+ //    glDisable(GL_LIGHTING);
+ //    glDisable(GL_LIGHT0);
+ // glBegin(GL_LINES); // Axis z, x, y
+ // 	glColor3f(1, 0, 0);
+ // 	glVertex3f(VELICINA_KOCKE, 0, 0);
+ // 	glVertex3f(0, 0, 0);
+
+ // 	glColor3f(0, 1, 0);
+ // 	glVertex3f(0, VELICINA_KOCKE, 0);
+ // 	glVertex3f(0, 0, 0);
+ 
+ // 	glColor3f(0, 0, 1);
+ // 	glVertex3f(0, 0, VELICINA_KOCKE);	
+ // 	glVertex3f(0, 0, 0);
+ // glEnd();
+ //     glEnable(GL_LIGHTING);
+ //    glEnable(GL_LIGHT0);
+ // glPopMatrix();
+
     if(!gameover && !victory) { // Ako nije kliknuta mina onda iscrtavamo kocke
 		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
 		int i, j, k;
@@ -216,6 +242,7 @@ static void on_display(void) {
 			for(j = 0; j < VELICINA_KOCKE; j++) {
 				for(k = 0; k < VELICINA_KOCKE; k++) {
 					glPushMatrix();
+
 					if(kocka[i][j][k].otvorena == 1) {
 
 						glDisable(GL_LIGHT0);
@@ -224,12 +251,20 @@ static void on_display(void) {
 						glColor3f(0,0,0); 
 						glTranslatef(i, j, k);
 						glScalef(0.003,0.003,0.003);
+						glRotatef(theta * 180 / M_PI, 0, 1, 0);
+						glRotatef(phi * 180 / M_PI - 50, 1, 0, 0);
 						char str[8];
 						sprintf(str, "%d", kocka[i][j][k].brojBombiUOkolini);
 						char *c = str;
+						
+						glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				        glEnable(GL_BLEND);
+				        glEnable(GL_LINE_SMOOTH);
+				        glLineWidth(2.0);	
+
 						if(*c != '0') {	
-							for (c=str; *c != '\0'; c++) {
-							    glutStrokeCharacter(GLUT_STROKE_MONO_ROMAN, *c);
+							for (c=str; *c; c++) {
+							    glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
 							}
 						}
 						glEnable(GL_LIGHT0);
@@ -442,3 +477,4 @@ static void minesweeper(int a, int b, int c){
 		}
 	}
 }
+
