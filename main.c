@@ -1,3 +1,4 @@
+
 #include <GL/glut.h>
 #include <stdlib.h>
 #include <math.h>
@@ -14,6 +15,7 @@ static void on_reshape(int width, int height);
 static void on_mouse(int button, int state, int x, int y);
 static void initializeCube(void);  
 static void minesweeper(int a, int b, int c);
+static void drawMine(float size);
 
 float theta; //sferne koordinate
 float phi;
@@ -180,18 +182,9 @@ static void on_display(void) {
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
 
-	glLineWidth(3);
-
     GLfloat light_ambient[] = { 0, 0, 0, 1};
     GLfloat light_diffuse[] = { 0.7, 0.7, 0.7, 1 };
     GLfloat light_specular[] = { 0, 0, 0, 0 };
-
-
-    GLfloat ambient_coeffs[] = { 0.3, 0.7, 0.3, 1 };
-    GLfloat diffuse_coeffs[] = { 0.2, 1, 0.2, 1 };
-    GLfloat specular_coeffs[] = { 0, 0, 0, 0 };
-    GLfloat shininess = 30;
-
 
 	glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -207,33 +200,8 @@ static void on_display(void) {
     glLightfv(GL_LIGHT0, GL_POSITION, (float[4]){scale * sin(theta) * sin(phi), 
               							scale * cos(phi), 
               							scale * cos(theta) * sin(phi), 0});
-
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, ambient_coeffs);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, specular_coeffs);
-    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, shininess);
     
     glShadeModel(GL_SMOOTH);
-
- //    glPushMatrix();
- //    glDisable(GL_LIGHTING);
- //    glDisable(GL_LIGHT0);
- // glBegin(GL_LINES); // Axis z, x, y
- // 	glColor3f(1, 0, 0);
- // 	glVertex3f(VELICINA_KOCKE, 0, 0);
- // 	glVertex3f(0, 0, 0);
-
- // 	glColor3f(0, 1, 0);
- // 	glVertex3f(0, VELICINA_KOCKE, 0);
- // 	glVertex3f(0, 0, 0);
- 
- // 	glColor3f(0, 0, 1);
- // 	glVertex3f(0, 0, VELICINA_KOCKE);	
- // 	glVertex3f(0, 0, 0);
- // glEnd();
- //     glEnable(GL_LIGHTING);
- //    glEnable(GL_LIGHT0);
- // glPopMatrix();
 
     if(!gameover && !victory) { // Ako nije kliknuta mina onda iscrtavamo kocke
 		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
@@ -297,7 +265,7 @@ static void on_display(void) {
 						glTranslatef(i, j, k);
 						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){1, 0, 0, 1});
     					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){1, 0, 0, 1});
-						glutSolidCube(0.5);
+						drawMine(0.5);
 					}
 					glPopMatrix();
 				}
@@ -477,4 +445,39 @@ static void minesweeper(int a, int b, int c){
 		}
 	}
 }
+static void drawMine(float size) {
+    
+    glMatrixMode(GL_MODELVIEW);
+    
+    glPushMatrix();
+    glTranslatef(-size, 0, 0);
+    glutSolidCube(0.2);
+    glPopMatrix();
 
+    glPushMatrix();
+    glTranslatef(size, 0, 0);
+    glutSolidCube(0.2);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0, 0, -size);
+    glutSolidCube(0.2);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0, 0, size);
+    glutSolidCube(0.2);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0, -(size), 0);
+    glutSolidCube(0.2);
+    glPopMatrix();
+    
+    glPushMatrix();
+    glTranslatef(0, size, 0);
+    glutSolidCube(0.2);
+    glPopMatrix();
+
+    glutSolidSphere(size, 20, 20);
+}
