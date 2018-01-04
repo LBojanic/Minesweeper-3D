@@ -235,9 +235,6 @@ static void on_display(void) {
     glEnable(GL_LIGHT0);
 
 
-    GLfloat light_ambient[] = { 0, 0, 0, 1};
-    GLfloat light_diffuse[] = { 0.7, 0.7, 0.7, 1 };
-    GLfloat light_specular[] = { 0, 0, 0, 0 };
 
 	glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -246,13 +243,13 @@ static void on_display(void) {
               scale * cos(theta) * sin(phi), 
               0, 0, 0,
               0, 1, 0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, (float[4]){ 0.2f, 0.2f, 0.2f, 1.0f });
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, (float[4]){ 1.0f, 1.0f, 1.0f, 1.0f });
+    glLightfv(GL_LIGHT0, GL_SPECULAR, (float[4]){ 1.0f, 1.0f, 1.0f, 1.0f });
 
-    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
     glLightfv(GL_LIGHT0, GL_POSITION, (float[4]){scale * sin(theta) * sin(phi), 
               							scale * cos(phi), 
-              							scale * cos(theta) * sin(phi), 0});
+              							scale * cos(theta) * sin(phi), 1});
     
 
     glShadeModel(GL_SMOOTH);
@@ -300,8 +297,10 @@ static void on_display(void) {
                             kocka[i][j][k].otvorena++;
                         }
 						glPushMatrix();
-						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){ 0.3, 0.7, 0.3, 1 });
-    					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){ 0.2, 1, 0.2, 1 });
+						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){ 0.24725f, 0.1995f, 0.0745f, 1.0f });
+    					glMaterialfv(GL_FRONT, GL_DIFFUSE, (float[4]){0.75164f, 0.60648f, 0.22648f, 1.0f });
+    					glMaterialfv(GL_FRONT, GL_SPECULAR, (float[4]){0.628281f, 0.555802f, 0.366065f, 1.0f });
+    					glMaterialf(GL_FRONT, GL_SHININESS, 51.2f );
 						glTranslatef(i, j, k);
                         glScalef(animationParameter, animationParameter, animationParameter);
 						glutSolidCube(0.9);
@@ -312,15 +311,20 @@ static void on_display(void) {
 						glPopMatrix();
 					} else if(kocka[i][j][k].otvorena == 0 && kocka[i][j][k].zastavica == 0 && kocka[i][j][k].animate != currAnim) {
 						glPushMatrix();
-						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){ 0.3, 0.7, 0.3, 1 });
-    					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){ 0.2, 1, 0.2, 1 });
+						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){ 0.24725f, 0.1995f, 0.0745f, 1.0f });
+    					glMaterialfv(GL_FRONT, GL_DIFFUSE, (float[4]){0.75164f, 0.60648f, 0.22648f, 1.0f });
+    					glMaterialfv(GL_FRONT, GL_SPECULAR, (float[4]){0.628281f, 0.555802f, 0.366065f, 1.0f });
+    					glMaterialf(GL_FRONT, GL_SHININESS, 51.2f );
 						glTranslatef(i, j, k);
 						glutSolidCube(0.9);
 						glPopMatrix();
 					} else if(kocka[i][j][k].otvorena == 0) {
 						glPushMatrix();
-						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){0, 1, 1, 1});
-    					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){0, 1, 1, 1});
+						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){ 0.105882f, 0.058824f, 0.113725f, 1.0f });
+    					glMaterialfv(GL_FRONT, GL_DIFFUSE, (float[4]){0.427451f, 0.470588f, 0.541176f, 1.0f });
+    					glMaterialfv(GL_FRONT, GL_SPECULAR, (float[4]){0.333333f, 0.333333f, 0.521569f, 1.0f });
+    					glMaterialf(GL_FRONT, GL_SHININESS, 9.84615f);
+
 						glTranslatef(i, j, k);
 						glutSolidCube(0.9);
 						glPopMatrix();
@@ -340,8 +344,8 @@ static void on_display(void) {
 					glPushMatrix();
 					if(kocka[i][j][k].bomba == 1) {
 						glTranslatef(i, j, k);
-						glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (float[4]){1, 0, 0, 1});
-    					glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (float[4]){1, 0, 0, 1});
+						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){1, 0, 0, 1});
+    					glMaterialfv(GL_FRONT, GL_DIFFUSE, (float[4]){1, 0, 0, 1});
 						drawMine(0.5);
 					}
 					glPopMatrix();
