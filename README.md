@@ -8,14 +8,12 @@ This is a version of minesweeper game in 3D.
 
 Rotate the camera with 'w' 'a' 's' 'd' keys, left click to open field, right click to mark field as a mine.
 
-_For more examples and usage, please refer to the [Wiki][wiki]._
 
 ## Setup
 
 Compile and run ./1
 
-```gcc -o 1 main.c -lGL -lGLU -lglut -lm
-```
+gcc -o 1 main.c -lGL -lGLU -lglut -lm
 
 ## Meta
 
