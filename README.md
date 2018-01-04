@@ -1,5 +1,5 @@
 # RS018-minesweeper-3d
-> Short blurb about what your product does.
+
 
 This is a version of minesweeper game in 3D.
 ![](screenshot.png)
