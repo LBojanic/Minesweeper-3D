@@ -4,7 +4,9 @@
 #include <math.h>
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
+//GLUT_ELAPSED_TIME je otkad je pozvan init u milisekundama i iskoristi strftime za printovanje normalnog izgleda, napravi novi timer koji se poziva na sekundu
 
 #define VELICINA_KOCKE 5
 #define BROJ_MINA 5
@@ -17,6 +19,9 @@ static void on_timer(int value);
 static void initializeCube(void);  
 static void minesweeper(int a, int b, int c);
 static void drawMine(float size);
+static void displayTimeElapsed();
+static void textFunc(const char* text, double x, double y);
+
 float theta; //sferne koordinate
 float phi;
 int gameover; //fleg da li je doslo do kraja igre
@@ -26,6 +31,13 @@ float scale;
 int currAnim;
 double animationParameter;
 int pokrenut_tajmer;
+int pokrenut_tajmer2;
+int widthW;
+int heightW;
+int resetTimer;
+int timeAtReset;
+int stopTimer;
+char timeElapsed[100];
 
 typedef struct kockica {
 	int otvorena; // fleg da li je otvorena kockica, 0 za nije, 1 za jeste
@@ -63,10 +75,14 @@ int main(int argc, char *argv[]) {
     animationParameter = 1;
     initializeCube();
     pokrenut_tajmer = 0;
-    
+    pokrenut_tajmer2 = 0;
+    resetTimer = 0;
+    timeAtReset = 0;
+    stopTimer = 0;
+
 	glutMainLoop();
 
-	return 0;
+	return 0;	
 }
 
 static void on_reshape(int width, int height){
@@ -74,6 +90,9 @@ static void on_reshape(int width, int height){
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	gluPerspective(60, (float) width/height, 1, 1000);
+	widthW = width;
+	heightW = height;
+
 }
 static void on_timer(int value) {
     if(value != 1)
@@ -87,6 +106,14 @@ static void on_timer(int value) {
         glutTimerFunc(1, on_timer, 1);
     else
         pokrenut_tajmer = 0;
+}
+static void on_timer2(int value) {
+    if(value != 2)
+        return;
+    
+    glutPostRedisplay();
+    if(pokrenut_tajmer2 == 1 && stopTimer == 0)
+    	glutTimerFunc(50, on_timer2, 2);
 }
 static void on_keyboard(unsigned char key, int x, int y) {
 	switch(key) {
@@ -129,6 +156,10 @@ static void on_keyboard(unsigned char key, int x, int y) {
 		    victory = 0;
 		    cellsToGo = VELICINA_KOCKE * VELICINA_KOCKE * VELICINA_KOCKE - BROJ_MINA;
 		    scale = 10;
+		    pokrenut_tajmer = 0;
+		    pokrenut_tajmer2 = 0;
+		    stopTimer = 0;
+		    timeAtReset = glutGet(GLUT_ELAPSED_TIME);
 		    initializeCube();
 		    glutPostRedisplay();
 		    break;
@@ -203,6 +234,7 @@ static void on_display(void) {
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
 
+
     GLfloat light_ambient[] = { 0, 0, 0, 1};
     GLfloat light_diffuse[] = { 0.7, 0.7, 0.7, 1 };
     GLfloat light_specular[] = { 0, 0, 0, 0 };
@@ -222,8 +254,11 @@ static void on_display(void) {
               							scale * cos(phi), 
               							scale * cos(theta) * sin(phi), 0});
     
+
     glShadeModel(GL_SMOOTH);
 
+	displayTimeElapsed();
+	
     if(!gameover && !victory) { // Ako nije kliknuta mina onda iscrtavamo kocke
 		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
 		int i, j, k;
@@ -295,6 +330,8 @@ static void on_display(void) {
 			}
 		}
 	} else if(gameover && !victory){ // inace iscrtavamo mine
+		textFunc("YOU LOST!", widthW/2 - 30, heightW - 50);
+		stopTimer = 1;
 		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
 		int i, j, k;
 		for(i = 0; i < VELICINA_KOCKE; i++) {
@@ -312,7 +349,11 @@ static void on_display(void) {
 			}
 		}
 	} else if(victory) {
-		glutSolidTeapot(1);
+		stopTimer = 1;
+		char victoryString[51];
+		sprintf(victoryString, "YOU WON!!! Your score is: %s\n", timeElapsed);
+		textFunc(victoryString, widthW/2 - 150, heightW - 50);
+		glutSolidTeapot(3);
 	}
 
 	glutSwapBuffers();
@@ -522,4 +563,43 @@ static void drawMine(float size) {
     glPopMatrix();
 
     glutSolidSphere(size, 20, 20);
+}
+
+static void displayTimeElapsed() {
+	if(stopTimer != 1) {
+		struct tm *info;
+		time_t pom = (glutGet(GLUT_ELAPSED_TIME) - timeAtReset)/1000;
+		info = localtime(&pom);	
+		strftime(timeElapsed, 50, "%n %M : %S", info);
+	    textFunc(timeElapsed, widthW/2 - 36, heightW - 50);
+	    if(pokrenut_tajmer2 == 0) {
+	    	pokrenut_tajmer2 = 1;
+	    	glutTimerFunc(50, on_timer2, 2);
+	    } 
+	}	
+}
+void textFunc(const char* text, double x, double y){
+    glPushMatrix();
+
+    glDisable(GL_LIGHTING);
+    glColor3f(0, 0, 0);
+
+    glMatrixMode(GL_PROJECTION);
+    double matrix[16];
+    glGetDoublev(GL_PROJECTION_MATRIX, matrix);
+    glLoadIdentity();
+    glOrtho(0, widthW, 0, heightW, -5, 5);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glRasterPos2f(x,y);
+    
+    for(int i = 0; text[i]; i++){
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, (int)text[i]);
+    }
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixd(matrix);
+    glMatrixMode(GL_MODELVIEW);
+    glEnable(GL_LIGHTING);
+
+    glPopMatrix();
 }
