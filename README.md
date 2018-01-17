@@ -45,14 +45,14 @@ This is a version of minesweeper game in 3D.
 1. Compile
 
     ```sh
-	gcc -o 1 main.c -lm -lGL -lGLU -lglut
+	make
 
     ```
 
 2. Start
 
     ```sh
-	./1
+	./minesweeper
 
     ```
 
