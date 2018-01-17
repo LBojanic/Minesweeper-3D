@@ -1,4 +1,3 @@
-
 #include <GL/glut.h>
 #include <stdlib.h>
 #include <math.h>
@@ -6,10 +5,8 @@
 #include <time.h>
 #include <string.h>
 
-//GLUT_ELAPSED_TIME je otkad je pozvan init u milisekundama i iskoristi strftime za printovanje normalnog izgleda, napravi novi timer koji se poziva na sekundu
-
-#define VELICINA_KOCKE 5
-#define BROJ_MINA 5
+#define CUBE_SIZE 5
+#define NUMBER_OF_MINES 5
 
 static void on_keyboard(unsigned char key, int x, int y);
 static void on_display(void);
@@ -22,32 +19,40 @@ static void drawMine(float size);
 static void displayTimeElapsed();
 static void textFunc(const char* text, double x, double y);
 
-float theta; //sferne koordinate
-float phi;
-int gameover; //fleg da li je doslo do kraja igre
-int cellsToGo;
-int victory;
-float scale;
-int currAnim;
-double animationParameter;
-int pokrenut_tajmer;
-int pokrenut_tajmer2;
+float theta; 
+float phi; /*theta i phi are spherical coordinates*/
+
+int gameover; /*gameover flag: 1 if its gameover, 0 if it is not*/
+int victory; /*victory flag: 1 if its victory, 0 if it is not*/
+
+int cellsToGo;/*if cellsToGo is 0 then its victory*/
+
+float scale; /*used for scroll wheel*/
+
+int currAnim; /*indicator for which cells need to be animated when redrawn*/ 
+
+double animationParameter; /*used in timerFunc to scale cubes when animated*/
+int timer1_ongoing; /*timer1 indicator*/
+int timer2_ongoing; /*timer2 indicator*/
+
 int widthW;
-int heightW;
+int heightW;/*viewport width and height*/
+
+/*Screen timer flags*/
 int resetTimer;
 int timeAtReset;
 int stopTimer;
 char timeElapsed[100];
 
-typedef struct kockica {
-	int otvorena; // fleg da li je otvorena kockica, 0 za nije, 1 za jeste
-	int bomba; // fleg da li je kockica bomba, 0 za nije, 1 za jeste
-	int brojBombiUOkolini;
-	int zastavica;   
-	int animate;
-} KOCKICA;
+typedef struct cube {
+	int isOpen; /*flag that indicates if the cube is opened or not*/
+	int isBomb; /*flag that indicates if the cube is a bomb*/
+	int numberOfBombsAround; /*number of bombs around single cube*/
+	int bombFlag; /*flag for changing color on right click*/
+	int animate; /*flag that indicates if the cube should be animated when redrawn*/
+} CUBE;
 
-KOCKICA kocka[VELICINA_KOCKE][VELICINA_KOCKE][VELICINA_KOCKE];
+CUBE cube[CUBE_SIZE][CUBE_SIZE][CUBE_SIZE];
 
 int main(int argc, char *argv[]) {
 
@@ -68,14 +73,14 @@ int main(int argc, char *argv[]) {
     phi = M_PI/4; 
     theta = M_PI/4; 
     gameover = 0;
-    cellsToGo = VELICINA_KOCKE * VELICINA_KOCKE * VELICINA_KOCKE - BROJ_MINA;
+    cellsToGo = CUBE_SIZE * CUBE_SIZE * CUBE_SIZE - NUMBER_OF_MINES;
     victory = 0;
     scale = 10;
     currAnim = 1;
     animationParameter = 1;
     initializeCube();
-    pokrenut_tajmer = 0;
-    pokrenut_tajmer2 = 0;
+    timer1_ongoing = 0;
+    timer2_ongoing = 0;
     resetTimer = 0;
     timeAtReset = 0;
     stopTimer = 0;
@@ -102,17 +107,18 @@ static void on_timer(int value) {
 	
     glutPostRedisplay();
     
-    if(animationParameter > 0 && pokrenut_tajmer == 1)
+    if(animationParameter > 0 && timer1_ongoing == 1)
         glutTimerFunc(1, on_timer, 1);
     else
-        pokrenut_tajmer = 0;
+        timer1_ongoing = 0;
 }
+
 static void on_timer2(int value) {
     if(value != 2)
         return;
     
     glutPostRedisplay();
-    if(pokrenut_tajmer2 == 1 && stopTimer == 0)
+    if(timer2_ongoing == 1 && stopTimer == 0)
     	glutTimerFunc(50, on_timer2, 2);
 }
 static void on_keyboard(unsigned char key, int x, int y) {
@@ -154,10 +160,10 @@ static void on_keyboard(unsigned char key, int x, int y) {
 		    theta = M_PI/4; 
 		    gameover = 0;
 		    victory = 0;
-		    cellsToGo = VELICINA_KOCKE * VELICINA_KOCKE * VELICINA_KOCKE - BROJ_MINA;
+		    cellsToGo = CUBE_SIZE * CUBE_SIZE * CUBE_SIZE - NUMBER_OF_MINES;
 		    scale = 10;
-		    pokrenut_tajmer = 0;
-		    pokrenut_tajmer2 = 0;
+		    timer1_ongoing = 0;
+		    timer2_ongoing = 0;
 		    stopTimer = 0;
 		    timeAtReset = glutGet(GLUT_ELAPSED_TIME);
 		    initializeCube();
@@ -170,8 +176,8 @@ static void on_mouse(int button, int state, int x, int y) {
     
 	switch(button) {
 		case GLUT_LEFT_BUTTON:
-			if(state == GLUT_DOWN) { // kada se pritisne levi klik na misu od 2d koordinata dobijamo 3
-				GLdouble x1, y1, z1; //Svetske koordinate
+			if(state == GLUT_DOWN) { 
+				GLdouble x1, y1, z1; /*changing 2D coordinates of mouse to 3D scene coordinates*/
 				GLdouble model[16], projection[16];
 				GLint viewport[4];
 				GLfloat z;
@@ -184,9 +190,9 @@ static void on_mouse(int button, int state, int x, int y) {
 				glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
 				gluUnProject(x, y, z, model, projection, viewport, &x1, &y1, &z1);
 
-				if((int)(x1 + 0.5) <= VELICINA_KOCKE-1 && (int)(x1 + 0.5) >= 0 && //samo ako su nam koordinate iz intervala [0, 4]
-				   (int)(y1 + 0.5) <= VELICINA_KOCKE-1 && (int)(y1 + 0.5) >= 0 &&
-				   (int)(z1 + 0.5) <= VELICINA_KOCKE-1 && (int)(z1 + 0.5) >= 0) {
+				if((int)(x1 + 0.5) <= CUBE_SIZE-1 && (int)(x1 + 0.5) >= 0 &&
+				   (int)(y1 + 0.5) <= CUBE_SIZE-1 && (int)(y1 + 0.5) >= 0 &&
+				   (int)(z1 + 0.5) <= CUBE_SIZE-1 && (int)(z1 + 0.5) >= 0) {
 				   			currAnim ++;
 				   			animationParameter = 1;
 							minesweeper((int)(x1 + 0.5), (int)(y1 + 0.5), (int)(z1 + 0.5));
@@ -195,8 +201,8 @@ static void on_mouse(int button, int state, int x, int y) {
 				}		
 			break;
 		case GLUT_RIGHT_BUTTON:
-			if(state == GLUT_DOWN) { // kada se pritisne levi klik na misu od 2d koordinata dobijamo 3
-				GLdouble x1, y1, z1; //Svetske koordinate
+			if(state == GLUT_DOWN) { /*changing 2D coordinates of mouse to 3D scene coordinates*/
+				GLdouble x1, y1, z1; 
 				GLdouble model[16], projection[16];
 				GLint viewport[4];
 				GLfloat z;
@@ -209,10 +215,10 @@ static void on_mouse(int button, int state, int x, int y) {
 				glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
 				gluUnProject(x, y, z, model, projection, viewport, &x1, &y1, &z1);
 
-				if((int)(x1 + 0.5) <= VELICINA_KOCKE-1 && (int)(x1 + 0.5) >= 0 && //samo ako su nam koordinate iz intervala [0, 4]
-				   (int)(y1 + 0.5) <= VELICINA_KOCKE-1 && (int)(y1 + 0.5) >= 0 &&
-				   (int)(z1 + 0.5) <= VELICINA_KOCKE-1 && (int)(z1 + 0.5) >= 0) {
-							kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].zastavica = !kocka[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].zastavica;
+				if((int)(x1 + 0.5) <= CUBE_SIZE-1 && (int)(x1 + 0.5) >= 0 && 
+				   (int)(y1 + 0.5) <= CUBE_SIZE-1 && (int)(y1 + 0.5) >= 0 &&
+				   (int)(z1 + 0.5) <= CUBE_SIZE-1 && (int)(z1 + 0.5) >= 0) {
+							cube[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].bombFlag = !cube[(int)(x1 + 0.5)][(int)(y1 + 0.5)][(int)(z1 + 0.5)].bombFlag;
 							glutPostRedisplay();
 						}	
 				}	
@@ -256,12 +262,12 @@ static void on_display(void) {
 
 	displayTimeElapsed();
 	
-    if(!gameover && !victory) { // Ako nije kliknuta mina onda iscrtavamo kocke
-		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
+    if(!gameover && !victory) { 
+		glTranslatef(-CUBE_SIZE/2, -CUBE_SIZE/2, -CUBE_SIZE/2);
 		int i, j, k;
-		for(i = 0; i < VELICINA_KOCKE; i++) {
-			for(j = 0; j < VELICINA_KOCKE; j++) {
-				for(k = 0; k < VELICINA_KOCKE; k++) {
+		for(i = 0; i < CUBE_SIZE; i++) {
+			for(j = 0; j < CUBE_SIZE; j++) {
+				for(k = 0; k < CUBE_SIZE; k++) {
 					glPushMatrix();
 						glPushMatrix();
 
@@ -274,7 +280,7 @@ static void on_display(void) {
 						glRotatef(theta * 180 / M_PI, 0, 1, 0);
 						glRotatef(phi * 180 / M_PI - 50, 1, 0, 0);
 						char str[8];
-						sprintf(str, "%d", kocka[i][j][k].brojBombiUOkolini);
+						sprintf(str, "%d", cube[i][j][k].numberOfBombsAround);
 						char *c = str;
 						
 						glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -291,10 +297,10 @@ static void on_display(void) {
 						glEnable(GL_LIGHTING);
 
 					glPopMatrix();
-                    if(kocka[i][j][k].otvorena == 1 && kocka[i][j][k].zastavica == 0 && kocka[i][j][k].animate == currAnim) {
+                    if(cube[i][j][k].isOpen == 1 && cube[i][j][k].bombFlag == 0 && cube[i][j][k].animate == currAnim) {
                         if(animationParameter < 0)
                         {
-                            kocka[i][j][k].otvorena++;
+                            cube[i][j][k].isOpen++;
                         }
 						glPushMatrix();
 						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){ 0.24725f, 0.1995f, 0.0745f, 1.0f });
@@ -304,12 +310,12 @@ static void on_display(void) {
 						glTranslatef(i, j, k);
                         glScalef(animationParameter, animationParameter, animationParameter);
 						glutSolidCube(0.9);
-						if(pokrenut_tajmer == 0) {
-                            pokrenut_tajmer = 1;
+						if(timer1_ongoing == 0) {
+                            timer1_ongoing = 1;
 							glutTimerFunc(50, on_timer, 1);
                         }
 						glPopMatrix();
-					} else if(kocka[i][j][k].otvorena == 0 && kocka[i][j][k].zastavica == 0 && kocka[i][j][k].animate != currAnim) {
+					} else if(cube[i][j][k].isOpen == 0 && cube[i][j][k].bombFlag == 0 && cube[i][j][k].animate != currAnim) {
 						glPushMatrix();
 						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){ 0.24725f, 0.1995f, 0.0745f, 1.0f });
     					glMaterialfv(GL_FRONT, GL_DIFFUSE, (float[4]){0.75164f, 0.60648f, 0.22648f, 1.0f });
@@ -318,7 +324,7 @@ static void on_display(void) {
 						glTranslatef(i, j, k);
 						glutSolidCube(0.9);
 						glPopMatrix();
-					} else if(kocka[i][j][k].otvorena == 0) {
+					} else if(cube[i][j][k].isOpen == 0) {
 						glPushMatrix();
 						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){ 0.105882f, 0.058824f, 0.113725f, 1.0f });
     					glMaterialfv(GL_FRONT, GL_DIFFUSE, (float[4]){0.427451f, 0.470588f, 0.541176f, 1.0f });
@@ -333,16 +339,16 @@ static void on_display(void) {
 				}
 			}
 		}
-	} else if(gameover && !victory){ // inace iscrtavamo mine
+	} else if(gameover && !victory){
 		textFunc("YOU LOST!", widthW/2 - 30, heightW - 50);
 		stopTimer = 1;
-		glTranslatef(-VELICINA_KOCKE/2, -VELICINA_KOCKE/2, -VELICINA_KOCKE/2);
+		glTranslatef(-CUBE_SIZE/2, -CUBE_SIZE/2, -CUBE_SIZE/2);
 		int i, j, k;
-		for(i = 0; i < VELICINA_KOCKE; i++) {
-			for(j = 0; j < VELICINA_KOCKE; j++) {
-				for(k = 0; k < VELICINA_KOCKE; k++) {
+		for(i = 0; i < CUBE_SIZE; i++) {
+			for(j = 0; j < CUBE_SIZE; j++) {
+				for(k = 0; k < CUBE_SIZE; k++) {
 					glPushMatrix();
-					if(kocka[i][j][k].bomba == 1) {
+					if(cube[i][j][k].isBomb == 1) {
 						glTranslatef(i, j, k);
 						glMaterialfv(GL_FRONT, GL_AMBIENT, (float[4]){1, 0, 0, 1});
     					glMaterialfv(GL_FRONT, GL_DIFFUSE, (float[4]){1, 0, 0, 1});
@@ -365,148 +371,145 @@ static void on_display(void) {
 
 static void initializeCube(void) {
 	int i, j, k;
-	for(i = 0; i < VELICINA_KOCKE; i++) {
-		for(j = 0; j < VELICINA_KOCKE; j++) {
-			for(k = 0; k < VELICINA_KOCKE; k++) {
-				kocka[i][j][k].otvorena = 0;
-				kocka[i][j][k].bomba = 0;
-				kocka[i][j][k].brojBombiUOkolini = 0;
-				kocka[i][j][k].zastavica = 0;
-				kocka[i][j][k].animate = 0;
+	for(i = 0; i < CUBE_SIZE; i++) {
+		for(j = 0; j < CUBE_SIZE; j++) {
+			for(k = 0; k < CUBE_SIZE; k++) {
+				cube[i][j][k].isOpen = 0;
+				cube[i][j][k].isBomb = 0;
+				cube[i][j][k].numberOfBombsAround = 0;
+				cube[i][j][k].bombFlag = 0;
+				cube[i][j][k].animate = 0;
 			}
 		}
 	}
 
 	srand(time(NULL));
 	
-	for(i = 0; i < BROJ_MINA; i++) {
+	for(i = 0; i < NUMBER_OF_MINES; i++) {
 		int a, b, c;
-		a = rand() % VELICINA_KOCKE;
-		b = rand() % VELICINA_KOCKE;
-		c = rand() % VELICINA_KOCKE;
-		while(kocka[a][b][c].bomba == 1){
-			a = rand() % VELICINA_KOCKE;
-			b = rand() % VELICINA_KOCKE;
-			c = rand() % VELICINA_KOCKE;
+		a = rand() % CUBE_SIZE;
+		b = rand() % CUBE_SIZE;
+		c = rand() % CUBE_SIZE;
+		while(cube[a][b][c].isBomb == 1){
+			a = rand() % CUBE_SIZE;
+			b = rand() % CUBE_SIZE;
+			c = rand() % CUBE_SIZE;
 		}
-		kocka[a][b][c].bomba = 1; // postavljena bomba
+		cube[a][b][c].isBomb = 1; 
 
-		/*Sada treba svakom susedu uvecati brojac bombi u okolini. 
-		Ispitujemo za svako polje oko bombe da li postoji i ako postoji uvecavamo brojac bombi u okolini*/
-
-		if(b + 1 < VELICINA_KOCKE)
-			kocka[a][b+1][c].brojBombiUOkolini += 1;
-		if(b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
-			kocka[a][b+1][c+1].brojBombiUOkolini += 1;
-		if(b + 1 < VELICINA_KOCKE && c - 1 >= 0)
-			kocka[a][b+1][c-1].brojBombiUOkolini += 1;
+		if(b + 1 < CUBE_SIZE)
+			cube[a][b+1][c].numberOfBombsAround += 1;
+		if(b + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
+			cube[a][b+1][c+1].numberOfBombsAround += 1;
+		if(b + 1 < CUBE_SIZE && c - 1 >= 0)
+			cube[a][b+1][c-1].numberOfBombsAround += 1;
 		if(c - 1 >= 0)
-			kocka[a][b][c-1].brojBombiUOkolini += 1;
-		if(c + 1 < VELICINA_KOCKE)
-			kocka[a][b][c+1].brojBombiUOkolini += 1;
+			cube[a][b][c-1].numberOfBombsAround += 1;
+		if(c + 1 < CUBE_SIZE)
+			cube[a][b][c+1].numberOfBombsAround += 1;
 		if(b - 1 >= 0)
-			kocka[a][b-1][c].brojBombiUOkolini += 1;
-		if(c + 1 < VELICINA_KOCKE && b - 1 >= 0)
-			kocka[a][b-1][c+1].brojBombiUOkolini += 1;
+			cube[a][b-1][c].numberOfBombsAround += 1;
+		if(c + 1 < CUBE_SIZE && b - 1 >= 0)
+			cube[a][b-1][c+1].numberOfBombsAround += 1;
 		if(c - 1 >= 0 && b - 1 >= 0)
-			kocka[a][b-1][c-1].brojBombiUOkolini += 1;
+			cube[a][b-1][c-1].numberOfBombsAround += 1;
 
 
-		if(a + 1 < VELICINA_KOCKE)
-			kocka[a+1][b][c].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE)
-			kocka[a+1][b+1][c].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
-			kocka[a+1][b+1][c-1].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
-			kocka[a+1][b+1][c+1].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && c - 1 >= 0)
-			kocka[a+1][b][c-1].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
-			kocka[a+1][b][c+1].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && b - 1 >= 0)
-			kocka[a+1][b-1][c].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c - 1 >= 0)
-			kocka[a+1][b-1][c-1].brojBombiUOkolini += 1;
-		if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
-			kocka[a+1][b-1][c+1].brojBombiUOkolini += 1;
+		if(a + 1 < CUBE_SIZE)
+			cube[a+1][b][c].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && b + 1 < CUBE_SIZE)
+			cube[a+1][b+1][c].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && b + 1 < CUBE_SIZE && c - 1 >= 0)
+			cube[a+1][b+1][c-1].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && b + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
+			cube[a+1][b+1][c+1].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && c - 1 >= 0)
+			cube[a+1][b][c-1].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
+			cube[a+1][b][c+1].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && b - 1 >= 0)
+			cube[a+1][b-1][c].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && b - 1 >= 0 && c - 1 >= 0)
+			cube[a+1][b-1][c-1].numberOfBombsAround += 1;
+		if(a + 1 < CUBE_SIZE && b - 1 >= 0 && c + 1 < CUBE_SIZE)
+			cube[a+1][b-1][c+1].numberOfBombsAround += 1;
 
 
 		if(a - 1 >= 0)
-			kocka[a-1][b][c].brojBombiUOkolini += 1;
+			cube[a-1][b][c].numberOfBombsAround += 1;
 		if(a - 1 >= 0 && c - 1 >= 0)
-			kocka[a-1][b][c-1].brojBombiUOkolini += 1;
-		if(a - 1 >= 0 && c + 1 < VELICINA_KOCKE)
-			kocka[a-1][b][c+1].brojBombiUOkolini += 1;
-		if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE)
-			kocka[a-1][b+1][c].brojBombiUOkolini += 1;
-		if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
-			kocka[a-1][b+1][c-1].brojBombiUOkolini += 1;
-		if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
-			kocka[a-1][b+1][c+1].brojBombiUOkolini += 1;
+			cube[a-1][b][c-1].numberOfBombsAround += 1;
+		if(a - 1 >= 0 && c + 1 < CUBE_SIZE)
+			cube[a-1][b][c+1].numberOfBombsAround += 1;
+		if(a - 1 >= 0 && b + 1 < CUBE_SIZE)
+			cube[a-1][b+1][c].numberOfBombsAround += 1;
+		if(a - 1 >= 0 && b + 1 < CUBE_SIZE && c - 1 >= 0)
+			cube[a-1][b+1][c-1].numberOfBombsAround += 1;
+		if(a - 1 >= 0 && b + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
+			cube[a-1][b+1][c+1].numberOfBombsAround += 1;
 		if(a - 1 >= 0 && b - 1 >= 0)
-			kocka[a-1][b-1][c].brojBombiUOkolini += 1;
+			cube[a-1][b-1][c].numberOfBombsAround += 1;
 		if(a - 1 >= 0 && b - 1 >= 0 && c - 1 >= 0)
-			kocka[a-1][b-1][c-1].brojBombiUOkolini += 1;
-		if(a - 1 >= 0 && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
-			kocka[a-1][b-1][c+1].brojBombiUOkolini += 1;
+			cube[a-1][b-1][c-1].numberOfBombsAround += 1;
+		if(a - 1 >= 0 && b - 1 >= 0 && c + 1 < CUBE_SIZE)
+			cube[a-1][b-1][c+1].numberOfBombsAround += 1;
 	}
 }
 
 static void minesweeper(int a, int b, int c){
-	if(kocka[a][b][c].otvorena == 1) {
+	if(cube[a][b][c].isOpen == 1) {
 		return ; 
 	} else {
-		if(kocka[a][b][c].bomba == 1) {
+		if(cube[a][b][c].isBomb == 1) {
 			gameover = 1;
 			return ;
 		} else {
-			kocka[a][b][c].animate = currAnim;
-			if(kocka[a][b][c].brojBombiUOkolini > 0) {
-				kocka[a][b][c].otvorena = 1;
+			cube[a][b][c].animate = currAnim;
+			if(cube[a][b][c].numberOfBombsAround > 0) {
+				cube[a][b][c].isOpen = 1;
 				cellsToGo -= 1;
 				if(cellsToGo <= 0){
 					victory = 1; 
 				}
 				return ;
 			} else {
-				kocka[a][b][c].otvorena = 1;
+				cube[a][b][c].isOpen = 1;
 				cellsToGo -= 1;
-				if(b + 1 < VELICINA_KOCKE)
+				if(b + 1 < CUBE_SIZE)
 					minesweeper(a, b+1, c);
-				if(b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+				if(b + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
 					minesweeper(a, b+1, c+1);
-				if(b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+				if(b + 1 < CUBE_SIZE && c - 1 >= 0)
 					minesweeper(a, b+1, c-1);
 				if(c - 1 >= 0)
 					minesweeper(a, b, c-1);
-				if(c + 1 < VELICINA_KOCKE)
+				if(c + 1 < CUBE_SIZE)
 					minesweeper(a, b, c+1);
 				if(b - 1 >= 0)
 					minesweeper(a, b-1, c);
-				if(c + 1 < VELICINA_KOCKE && b - 1 >= 0)
+				if(c + 1 < CUBE_SIZE && b - 1 >= 0)
 					minesweeper(a, b-1, c+1);
 				if(c - 1 >= 0 && b - 1 >= 0)
 					minesweeper(a, b-1, c-1);
 
 
-				if(a + 1 < VELICINA_KOCKE)
+				if(a + 1 < CUBE_SIZE)
 					minesweeper(a+1, b, c);
-				if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE)
+				if(a + 1 < CUBE_SIZE && b + 1 < CUBE_SIZE)
 					minesweeper(a+1, b+1, c);
-				if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+				if(a + 1 < CUBE_SIZE && b + 1 < CUBE_SIZE && c - 1 >= 0)
 					minesweeper(a+1, b+1, c-1);
-				if(a + 1 < VELICINA_KOCKE && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+				if(a + 1 < CUBE_SIZE && b + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
 					minesweeper(a+1, b+1, c+1);
-				if(a + 1 < VELICINA_KOCKE && c - 1 >= 0)
+				if(a + 1 < CUBE_SIZE && c - 1 >= 0)
 					minesweeper(a+1, b, c-1);
-				if(a + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+				if(a + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
 					minesweeper(a+1, b, c+1);
-				if(a + 1 < VELICINA_KOCKE && b - 1 >= 0)
+				if(a + 1 < CUBE_SIZE && b - 1 >= 0)
 					minesweeper(a+1, b-1, c);
-				if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c - 1 >= 0)
+				if(a + 1 < CUBE_SIZE && b - 1 >= 0 && c - 1 >= 0)
 					minesweeper(a+1, b-1, c-1);
-				if(a + 1 < VELICINA_KOCKE && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+				if(a + 1 < CUBE_SIZE && b - 1 >= 0 && c + 1 < CUBE_SIZE)
 					minesweeper(a+1, b-1, c+1);
 
 
@@ -514,19 +517,19 @@ static void minesweeper(int a, int b, int c){
 					minesweeper(a-1, b, c);
 				if(a - 1 >= 0 && c - 1 >= 0)
 					minesweeper(a-1, b, c-1);
-				if(a - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+				if(a - 1 >= 0 && c + 1 < CUBE_SIZE)
 					minesweeper(a-1, b, c+1);
-				if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE)
+				if(a - 1 >= 0 && b + 1 < CUBE_SIZE)
 					minesweeper(a-1, b+1, c);
-				if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c - 1 >= 0)
+				if(a - 1 >= 0 && b + 1 < CUBE_SIZE && c - 1 >= 0)
 					minesweeper(a-1, b+1, c-1);
-				if(a - 1 >= 0 && b + 1 < VELICINA_KOCKE && c + 1 < VELICINA_KOCKE)
+				if(a - 1 >= 0 && b + 1 < CUBE_SIZE && c + 1 < CUBE_SIZE)
 					minesweeper(a-1, b+1, c+1);
 				if(a - 1 >= 0 && b - 1 >= 0)
 					minesweeper(a-1, b-1, c);
 				if(a - 1 >= 0 && b - 1 >= 0 && c - 1 >= 0)
 					minesweeper(a-1, b-1, c-1);
-				if(a - 1 >= 0 && b - 1 >= 0 && c + 1 < VELICINA_KOCKE)
+				if(a - 1 >= 0 && b - 1 >= 0 && c + 1 < CUBE_SIZE)
 					minesweeper(a-1, b-1, c+1);
 			}
 		}
@@ -576,11 +579,11 @@ static void displayTimeElapsed() {
 		info = localtime(&pom);	
 		strftime(timeElapsed, 50, "%n %M : %S", info);
 	    textFunc(timeElapsed, widthW/2 - 36, heightW - 50);
-	    if(pokrenut_tajmer2 == 0) {
-	    	pokrenut_tajmer2 = 1;
+	    if(timer2_ongoing == 0) {
+	    	timer2_ongoing = 1;
 	    	glutTimerFunc(50, on_timer2, 2);
 	    } 
-	}	
+	}	     
 }
 void textFunc(const char* text, double x, double y){
     glPushMatrix();
