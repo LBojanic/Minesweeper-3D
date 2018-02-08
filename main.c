@@ -7,7 +7,7 @@
 
 #define CUBE_SIZE 5
 #define NUMBER_OF_MINES 5
-#define TEXTUREFILENAME "wood.bmp"
+#define TEXTUREFILENAME "marble.bmp"
 
 typedef struct {
   unsigned short type;
