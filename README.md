@@ -2,7 +2,7 @@
 
 
 This is a version of minesweeper game in 3D.
-![](screenshot.png)
+![](screenshot1.png)
 
 ## Usage
 
