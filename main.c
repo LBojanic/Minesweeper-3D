@@ -7,6 +7,43 @@
 
 #define CUBE_SIZE 5
 #define NUMBER_OF_MINES 5
+#define TEXTUREFILENAME "wood.bmp"
+
+typedef struct {
+  unsigned short type;
+  unsigned int size;
+  unsigned short reserved1;
+  unsigned short reserved2;
+  unsigned int offsetbits;
+} BITMAPFILEHEADER;
+
+typedef struct {
+  unsigned int size;
+  unsigned int width;
+  unsigned int height;
+  unsigned short planes;
+  unsigned short bitcount;
+  unsigned int compression;
+  unsigned int sizeimage;
+  int xpelspermeter;
+  int ypelspermeter;
+  unsigned int colorsused;
+  unsigned int colorsimportant;
+} BITMAPINFOHEADER;
+
+typedef struct Image {
+  int width; /*Image width*/
+  int height; /*Image height*/
+  char *pixels; /*Array of data for each pixel*/
+} Image;
+
+typedef struct cube {
+	int isOpen; /*flag that indicates if the cube is opened or not*/
+	int isBomb; /*flag that indicates if the cube is a bomb*/
+	int numberOfBombsAround; /*number of bombs around single cube*/
+	int bombFlag; /*flag for changing color on right click*/
+	int animate; /*flag that indicates if the cube should be animated when redrawn*/
+} CUBE;
 
 static void on_keyboard(unsigned char key, int x, int y);
 static void on_display(void);
@@ -18,6 +55,11 @@ static void minesweeper(int a, int b, int c);
 static void drawMine(float size);
 static void displayTimeElapsed();
 static void textFunc(const char* text, double x, double y);
+static void image_func(Image *image, char *fileName);
+static void destroy_image(Image *image);
+Image *image_initialization(int width, int height);
+
+static GLuint textureID[1]; /*texture IDs*/
 
 float theta; 
 float phi; /*theta i phi are spherical coordinates*/
@@ -42,14 +84,6 @@ int heightW;/*viewport width and height*/
 int timeAtReset;
 int stopTimer;
 char timeElapsed[100];
-
-typedef struct cube {
-	int isOpen; /*flag that indicates if the cube is opened or not*/
-	int isBomb; /*flag that indicates if the cube is a bomb*/
-	int numberOfBombsAround; /*number of bombs around single cube*/
-	int bombFlag; /*flag for changing color on right click*/
-	int animate; /*flag that indicates if the cube should be animated when redrawn*/
-} CUBE;
 
 CUBE cube[CUBE_SIZE][CUBE_SIZE][CUBE_SIZE];
 
@@ -243,11 +277,60 @@ static void on_display(void) {
 
     glEnable(GL_LIGHTING); /*enable lighting*/
     glEnable(GL_LIGHT0);/*enable one light*/ 
+	Image *image; /*Texture object read from a file*/
+	glEnable(GL_TEXTURE_2D); /*Enabling 2d textures*/
+	glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_REPLACE); /*Setting texture environment parameters*/
 
+	image = image_initialization(0, 0); /*Initializing texture object*/
+	image_func(image, TEXTUREFILENAME); /*Creating first texture*/
+	glGenTextures(1, textureID); /*Generating texture ID*/
+	glBindTexture(GL_TEXTURE_2D, textureID[0]);
+	glTexParameteri(GL_TEXTURE_2D, /*Setting texture wrap parameter for texture parameter s.*/
+                    GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, /*Setting texture wrap parameter for texture parameter t*/
+                    GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, /*Setting texture magnification function*/
+                    GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, /*Setting texture minifying function*/
+                    GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, /*Setting 2D texture image, second parameter is 0 for base image level, RGB color components*/
+                 image->width, image->height, 0, /*Setting image width and height, without border*/
+                 GL_RGB, GL_UNSIGNED_BYTE, image->pixels); /*RGB format of the pixel data, unsigned data type of the pixel data, image data in memory*/
+	glBindTexture(GL_TEXTURE_2D, 0); /*Turning off current texture*/
+	destroy_image(image);
 
-
-	glMatrixMode(GL_MODELVIEW);
+	glDisable(GL_DEPTH_TEST);
+    glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0, widthW, 0 , heightW, -1, 1);
+
+	glBindTexture(GL_TEXTURE_2D, textureID[0]); /*Drawing background*/
+    glBegin(GL_QUADS);
+
+        glTexCoord2f(0, 0);
+        glVertex2i(0, 0);
+
+        glTexCoord2f(1, 0);
+        glVertex2i(widthW, 0);
+
+        glTexCoord2f(1, 1);
+        glVertex2i(widthW, heightW);
+
+        glTexCoord2f(0, 1);
+        glVertex2i(0, heightW);
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0); /*Turning off current texture*/
+    glEnable(GL_DEPTH_TEST); /*Re enabling depth testing*/
+    glClear(GL_DEPTH_BUFFER_BIT); /*Clearing depth buffer*/
+    glLoadIdentity();
+	gluPerspective(60, (float) widthW/heightW, 1, 1000); /*Setting perspective again*/
+	glMatrixMode(GL_MODELVIEW); 
+	glLoadIdentity();
+
+
     gluLookAt(scale * sin(theta) * sin(phi), /*camera position, implemented using spherical coordinates*/ 
               scale * cos(phi), 
               scale * cos(theta) * sin(phi), 
@@ -395,6 +478,8 @@ static void initializeCube(void) {/*cube initializations*/
 			}
 		}
 	}
+
+
 
 	srand(time(NULL)); /*setting seed for random generator so we don't get each set of bombs each time*/
 	
@@ -627,4 +712,115 @@ void textFunc(const char* text, double x, double y){
     glEnable(GL_LIGHTING); /*enable lighting*/
 
     glPopMatrix();
+}
+Image *image_initialization(int width, int height) {
+
+  Image *image;
+
+  if(width < 0 || height < 0) { /*Image sizes can't be lesser than zero*/
+  	fprintf(stderr, "Error: width and height of image are invalid.\n");
+  	exit(EXIT_FAILURE);
+  }
+
+  image = (Image*)malloc(sizeof(Image)); /*Memory allocation for image structure*/
+  if(image == NULL) {
+  	fprintf(stderr, "Error: cannot allocate memory for image structure.\n");
+  	exit(EXIT_FAILURE);
+  }
+
+  image->width = width; /*Initializing image width*/
+  image->height = height; /*Initializing image height*/
+  if (width == 0 || height == 0) 
+    image->pixels = NULL; 
+  else {
+    image->pixels = (char *)malloc(3 * width * height * sizeof(char)); /*for every pixel R, G, B value*/
+    if(image->pixels == NULL) {
+    	fprintf(stderr, "Error: cannot allocate memory for pixels array in image structure.\n");
+    	exit(EXIT_FAILURE);
+    }
+  }
+  return image;
+}
+
+static void destroy_image(Image *image) {
+	free(image->pixels); /*this will free array inside structure*/
+	free(image); /*this will free structure*/
+}
+void image_func(Image *image, char *fileName) {
+
+  FILE *file;
+  BITMAPFILEHEADER bfh;
+  BITMAPINFOHEADER bih;
+  unsigned int i;
+  unsigned char r, g, b, a;
+
+  if((file = fopen(fileName, "rb")) == NULL) { /*Opening file in binary mode*/
+  	fprintf(stderr, "Error: cannot open image file.\n");
+  	exit(EXIT_FAILURE);
+  }
+
+  /*Reading data for first header*/
+  fread(&bfh.type, 2, 1, file);
+  fread(&bfh.size, 4, 1, file);
+  fread(&bfh.reserved1, 2, 1, file);
+  fread(&bfh.reserved2, 2, 1, file);
+  fread(&bfh.offsetbits, 4, 1, file);
+
+  /*Reading data for second header. Here we will only use width and height of image*/
+  fread(&bih.size, 4, 1, file);
+  fread(&bih.width, 4, 1, file);
+  fread(&bih.height, 4, 1, file);
+  fread(&bih.planes, 2, 1, file);
+  fread(&bih.bitcount, 2, 1, file);
+  fread(&bih.compression, 4, 1, file);
+  fread(&bih.sizeimage, 4, 1, file);
+  fread(&bih.xpelspermeter, 4, 1, file);
+  fread(&bih.ypelspermeter, 4, 1, file);
+  fread(&bih.colorsused, 4, 1, file);
+  fread(&bih.colorsimportant, 4, 1, file);
+
+  image->width = bih.width;
+  image->height = bih.height;
+
+  /*If we have R, G, B components we allocate 3 chars for each pixel, if we have R, G, B, A we allocate 4 chars for each pixel*/
+  if (bih.bitcount == 24)
+    image->pixels = (char *)malloc(3 * bih.width * bih.height * sizeof(char));
+  else if (bih.bitcount == 32)
+    image->pixels = (char *)malloc(4 * bih.width * bih.height * sizeof(char));
+  else {
+    fprintf(stderr, "Error: you can only read 24/32bit per pixel.\n");
+    exit(EXIT_FAILURE);
+  }
+  if(image->pixels == NULL) {
+  	fprintf(stderr, "Error: image pixels allocation failed.\n");
+  	exit(EXIT_FAILURE);
+  }
+
+  /*Here we will read data for each pixel*/
+  if (bih.bitcount == 24)
+
+    for (i = 0; i < bih.width * bih.height; i++) {
+      /*We read data in B, G, R order (reverse R, G, B)*/
+      fread(&b, sizeof(char), 1, file);
+      fread(&g, sizeof(char), 1, file);
+      fread(&r, sizeof(char), 1, file);
+      image->pixels[3 * i] = r;
+      image->pixels[3 * i + 1] = g;
+      image->pixels[3 * i + 2] = b;
+    }
+  else if (bih.bitcount == 32)
+  	/*We read data in B, G, R, A order*/
+    for (i = 0; i < bih.width * bih.height; i++) {
+      fread(&b, sizeof(char), 1, file);
+      fread(&g, sizeof(char), 1, file);
+      fread(&r, sizeof(char), 1, file);
+      fread(&a, sizeof(char), 1, file);
+
+      image->pixels[4 * i] = r;
+      image->pixels[4 * i + 1] = g;
+      image->pixels[4 * i + 2] = b;
+      image->pixels[4 * i + 3] = a;
+    }
+
+  fclose(file); /*Close file*/
 }
